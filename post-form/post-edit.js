@@ -1,3 +1,12 @@
+import {
+    API_BASE_URL,
+    authFetch,
+    hydrateProtectedImages,
+    logout,
+    requireCurrentUser,
+    setProtectedImage,
+} from "../common/auth.js";
+
 const backButton = document.querySelector("#backButton");
 const headerProfileButton = document.querySelector("#headerProfileButton");
 const headerProfileImage = document.querySelector("#headerProfileImage");
@@ -18,11 +27,7 @@ const editCompleteButton = document.querySelector("#editCompleteButton");
 const serverErrorToast = document.querySelector("#serverErrorToast");
 
 
-const savedUser = sessionStorage.getItem("currentUser");
-if (!savedUser) {
-    location.href = "/login/login.html";
-}
-const currentUser = JSON.parse(savedUser);
+const currentUser = await requireCurrentUser();
 
 backButton.addEventListener("click", () => {
     location.href = "/posts/posts.html"
@@ -40,14 +45,13 @@ editPasswordButton.addEventListener("click", () => {
     location.href = "/password-edit/password-edit.html"
 });
 
-logoutButton.addEventListener("click", () => {
-    sessionStorage.removeItem("currentUser");
+logoutButton.addEventListener("click", async () => {
+    await logout();
     location.href = "/login/login.html"
 });
 
 
-const userId = currentUser.userId;
-headerProfileImage.src = currentUser.profileImage;
+setProtectedImage(headerProfileImage, currentUser.profileImage);
 
 const params = new URLSearchParams(location.search);
 const postId = params.get("postId");
@@ -58,7 +62,7 @@ loadPostInfo();
 
 async function loadPostInfo() {
     try {
-        const response = await fetch(`http://localhost:8080/${userId}/posts/${postId}`);
+        const response = await authFetch(`/posts/${postId}`);
 
         if (response.ok) {
             const data = await response.json();
@@ -69,7 +73,8 @@ async function loadPostInfo() {
             postImages = (postData.postImages ?? []).map((image) => {
                 return {
                     type: "existing",
-                    value: image.postImage,
+                    value: image.imageUrl,
+                    originalFilename: image.originalFilename,
                 };
             });
 
@@ -171,9 +176,11 @@ function renderImagePreviews() {
 
     postImages.forEach((image, index) => {
         let imageUrl;
+        let protectedImageSource = "";
 
         if (image.type === "existing") {
-            imageUrl = image.value;
+            imageUrl = "";
+            protectedImageSource = `data-protected-src="${image.value}"`;
         } else {
             imageUrl = URL.createObjectURL(image.file);
         }
@@ -185,6 +192,7 @@ function renderImagePreviews() {
                 <img
                     class="image-preview"
                     src="${imageUrl}"
+                    ${protectedImageSource}
                     alt="이미지 미리보기"
                 >
 
@@ -200,6 +208,8 @@ function renderImagePreviews() {
         );
     });
 
+    hydrateProtectedImages(imagePreviewList);
+
     imagePreviewList.classList.toggle(
         "hidden",
         postImages.length === 0
@@ -211,20 +221,27 @@ postEditForm.addEventListener("submit", async (event) => {
 
     const title = postTitleInput.value;
     const content = postContentInput.value;
-    const postImage = postImages.map((image) => image.value);
-    const requestBody = {
-        title: title,
-        content: content,
-        postImage: postImage,
-    };
 
     try {
-        const response = await fetch(`http://localhost:8080/${userId}/posts/${postId}`, {
+        const formData = new FormData();
+        formData.append(
+            "content",
+            new Blob(
+                [JSON.stringify({ title, content })],
+                { type: "application/json" }
+            )
+        );
+
+        const imageFiles = await Promise.all(
+            postImages.map(toMultipartImage)
+        );
+        imageFiles.forEach((file) => {
+            formData.append("images", file);
+        });
+
+        const response = await authFetch(`/posts/${postId}`, {
             method: "PATCH",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(requestBody),
+            body: formData,
         });
 
         if (response.ok) {
@@ -254,6 +271,30 @@ postEditForm.addEventListener("submit", async (event) => {
         showError(serverErrorToast, "예기치 못한 서버 오류가 발생했습니다.");
     }
 });
+
+async function toMultipartImage(image) {
+    if (image.type === "new") {
+        return image.file;
+    }
+
+    const imageUrl = new URL(image.value, API_BASE_URL);
+    const response = await authFetch(
+        `${imageUrl.pathname}${imageUrl.search}`
+    );
+
+    if (!response.ok) {
+        throw new Error("existing_image_fetch_failed");
+    }
+
+    const blob = await response.blob();
+    const filename = image.originalFilename || decodeURIComponent(
+        imageUrl.pathname.split("/").pop() || "post-image"
+    );
+
+    return new File([blob], filename, {
+        type: blob.type || "application/octet-stream",
+    });
+}
 
 function getErrorMessage(data) {
     const error = data.data?.errors?.[0];

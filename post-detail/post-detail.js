@@ -9,12 +9,14 @@ const serverErrorToast = document.querySelector("#serverErrorToast");
 
 import { renderPost } from "./post-render.js";
 import { renderComments } from "./comment-render.js";
+import {
+    authFetch,
+    logout,
+    requireCurrentUser,
+    setProtectedImage,
+} from "../common/auth.js";
 
-const savedUser = sessionStorage.getItem("currentUser");
-if (!savedUser) {
-    location.href = "/login/login.html";
-}
-const currentUser = JSON.parse(savedUser);
+const currentUser = await requireCurrentUser();
 
 backButton.addEventListener("click", () => {
     location.href = "/posts/posts.html"
@@ -32,13 +34,12 @@ editPasswordButton.addEventListener("click", () => {
     location.href = "/password-edit/password-edit.html"
 });
 
-logoutButton.addEventListener("click", () => {
-    sessionStorage.removeItem("currentUser");
+logoutButton.addEventListener("click", async () => {
+    await logout();
     location.href = "/login/login.html"
 });
 
-const userId = currentUser.userId;
-headerProfileImage.src = currentUser.profileImage;
+setProtectedImage(headerProfileImage, currentUser.profileImage);
 
 const params = new URLSearchParams(location.search);
 const postId = params.get("postId");
@@ -47,7 +48,7 @@ loadPostDetail();
 
 async function loadPostDetail() {
     try {
-        const response = await fetch(`http://localhost:8080/${userId}/posts/${postId}`);
+        const response = await authFetch(`/posts/${postId}`);
 
         if (response.ok) {
             const data = await response.json();
@@ -58,11 +59,9 @@ async function loadPostDetail() {
             } = data.data;
 
             renderPost(postData, {
-                userId,
                 postId,
             });
             renderComments(commentList, {
-                userId,
                 postId,
             });
 

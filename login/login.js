@@ -1,3 +1,8 @@
+import {
+    API_BASE_URL,
+    setAccessToken,
+} from "../common/auth.js";
+
 const emailInput = document.querySelector("#emailInput");
 const passwordInput = document.querySelector("#passwordInput");
 const loginButton = document.querySelector("#loginButton");
@@ -19,8 +24,9 @@ loginForm.addEventListener("submit", async (event) => {
     const password = passwordInput.value;
 
     try {
-        const response = await fetch("http://localhost:8080/login", {
+        const response = await fetch(`${API_BASE_URL}/login`, {
             method: "POST",
+            credentials: "include",
             headers: {
                 "Content-Type": "application/json",
             },
@@ -33,6 +39,8 @@ loginForm.addEventListener("submit", async (event) => {
         const data = await response.json();
 
         if (response.ok) {
+            setAccessToken(data.data.token.accessToken);
+
             const currentUser = {
                 userId: data.data.userId,
                 email: data.data.email,

@@ -1,3 +1,10 @@
+import {
+    authFetch,
+    logout,
+    requireCurrentUser,
+    setProtectedImage,
+} from "../common/auth.js";
+
 const backButton = document.querySelector("#backButton");
 const headerProfileButton = document.querySelector("#headerProfileButton");
 const headerProfileImage = document.querySelector("#headerProfileImage");
@@ -22,11 +29,7 @@ const withdrawCancelButton = document.querySelector("#withdrawCancelButton");
 const withdrawConfirmButton = document.querySelector("#withdrawConfirmButton");
 
 
-const savedUser = sessionStorage.getItem("currentUser");
-if (!savedUser) {
-    location.href = "/login/login.html";
-}
-const currentUser = JSON.parse(savedUser);
+const currentUser = await requireCurrentUser();
 
 backButton.addEventListener("click", () => {
     location.href = "/posts/posts.html"
@@ -44,21 +47,20 @@ editPasswordButton.addEventListener("click", () => {
     location.href = "/password-edit/password-edit.html"
 });
 
-logoutButton.addEventListener("click", () => {
-    sessionStorage.removeItem("currentUser");
+logoutButton.addEventListener("click", async () => {
+    await logout();
     location.href = "/login/login.html"
 });
 
 
-const userId = currentUser.userId;
-headerProfileImage.src = currentUser.profileImage;
+setProtectedImage(headerProfileImage, currentUser.profileImage);
 
 loadUserInfo();
 
 function loadUserInfo() {
     userEmailText.textContent = currentUser.email;
     nicknameInput.value = currentUser.nickname;
-    currentProfileImage.src = currentUser.profileImage;
+    setProtectedImage(currentProfileImage, currentUser.profileImage);
     return;
 }
 
@@ -84,36 +86,42 @@ profileEditForm.addEventListener("submit", async (event) => {
     const requestBody = {
         nickname: nickname,
     };
+    const formData = new FormData();
+
+    formData.append(
+        "content",
+        new Blob(
+            [JSON.stringify(requestBody)],
+            { type: "application/json" }
+        )
+    );
     if (profileImage) {
-        requestBody.profileImage = profileImage.name;
+        formData.append("profileImage", profileImage);
     }
 
     try {
-        const response = await fetch(`http://localhost:8080/user/${userId}/info`, {
+        const response = await authFetch("/user/info", {
             method: "PATCH",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(requestBody),
+            body: formData,
         });
 
         if (response.ok) {
+            const data = await response.json();
             showProfileEditToast();
 
             profileEditSubmitButton.disabled = true;
             profileEditSubmitButton.classList.remove("active");
             profileEditSubmitButton.classList.add("disabled");
 
-            currentUser.nickname = nickname;
-
-            if (profileImage) {
-                currentUser.profileImage = profileImage.name;
-            }
+            currentUser.email = data.data.email;
+            currentUser.nickname = data.data.nickname;
+            currentUser.profileImage = data.data.profileImage;
             sessionStorage.setItem(
                 "currentUser", JSON.stringify(currentUser)
             );
 
-            headerProfileImage.src = currentProfileImage.src;
+            setProtectedImage(headerProfileImage, currentUser.profileImage);
+            setProtectedImage(currentProfileImage, currentUser.profileImage);
 
             return;
         }
@@ -153,7 +161,7 @@ withdrawCancelButton.addEventListener("click", () => {
 
 withdrawConfirmButton.addEventListener("click", async () => {
     try {
-        const response = await fetch(`http://localhost:8080/${userId}/withdrawal`, {
+        const response = await authFetch("/withdrawal", {
             method: "DELETE",
         });
 

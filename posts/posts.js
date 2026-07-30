@@ -1,3 +1,11 @@
+import {
+  authFetch,
+  hydrateProtectedImages,
+  logout,
+  requireCurrentUser,
+  setProtectedImage,
+} from "../common/auth.js";
+
 const headerProfileButton = document.querySelector("#headerProfileButton");
 const headerProfileImage = document.querySelector("#headerProfileImage");
 const profileDropdown = document.querySelector("#profileDropdown");
@@ -9,11 +17,7 @@ const postList = document.querySelector("#postList");
 const serverErrorToast = document.querySelector("#serverErrorToast");
 
 
-const savedUser = sessionStorage.getItem("currentUser");
-if (!savedUser) {
-  location.href = "/login/login.html";
-}
-const currentUser = JSON.parse(savedUser);
+const currentUser = await requireCurrentUser();
 
 headerProfileButton.addEventListener("click", () => {
   profileDropdown.classList.toggle("hidden");
@@ -27,13 +31,12 @@ editPasswordButton.addEventListener("click", () => {
   location.href = "/password-edit/password-edit.html"
 });
 
-logoutButton.addEventListener("click", () => {
-  sessionStorage.removeItem("currentUser");
+logoutButton.addEventListener("click", async () => {
+  await logout();
   location.href = "/login/login.html"
 });
 
-const userId = currentUser.userId;
-headerProfileImage.src = currentUser.profileImage;
+setProtectedImage(headerProfileImage, currentUser.profileImage);
 
 createPostButton.addEventListener("click", () => {
   location.href = "/post-form/post-create.html"
@@ -43,12 +46,12 @@ loadPosts();
 
 async function loadPosts() {
   try {
-    const response = await fetch(`http://localhost:8080/${userId}/posts`);
+    const response = await authFetch("/posts");
 
     if (response.ok) {
       const data = await response.json();
 
-      renderPosts(data.data ?? []);
+      renderPosts(data.data?.posts ?? []);
       return;
     }
 
@@ -117,7 +120,7 @@ function renderPosts(posts) {
             <div class="post-writer">
               <img
                 class="writer-profile-image"
-                src="${post.writerProfileImage}"
+                data-protected-src="${post.writerProfileImage}"
                 alt="작성자 프로필 이미지"
               />
 
@@ -130,6 +133,8 @@ function renderPosts(posts) {
       </article>
     `;
   });
+
+  hydrateProtectedImages(postList);
 }
 
 function showError(message) {

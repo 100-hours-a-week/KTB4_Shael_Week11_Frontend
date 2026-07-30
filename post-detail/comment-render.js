@@ -1,4 +1,8 @@
 import { updateCommentCount } from "./post-render.js";
+import {
+    authFetch,
+    hydrateProtectedImages,
+} from "../common/auth.js";
 
 const commentForm = document.querySelector("#commentForm");
 const commentInput = document.querySelector("#commentInput");
@@ -9,13 +13,11 @@ const deleteCommentModal = document.querySelector("#deleteCommentModal");
 const cancelDeleteCommentButton = document.querySelector("#cancelDeleteCommentButton");
 const confirmDeleteCommentButton = document.querySelector("#confirmDeleteCommentButton");
 
-let userId = null;
 let postId = null;
 let selectedCommentId = null;
 let selectedCommentItem = null;
 
 export function renderComments(data, pageContext) {
-    userId = pageContext.userId;
     postId = pageContext.postId;
 
     const comments = Array.isArray(data) ? data : [];
@@ -31,6 +33,8 @@ export function renderComments(data, pageContext) {
 
             commentList.innerHTML += renderParentComment(comment, replies);
         });
+
+    hydrateProtectedImages(commentList);
 }
 
 function renderParentComment(comment, replies = []) {
@@ -62,7 +66,7 @@ function renderCommentMain(comment) {
         <div class="comment-header-row">
             <div class="comment-body">
                 <div class="comment-writer-meta">
-                    <img class="comment-writer-profile-image" src="${profileImage}"
+                    <img class="comment-writer-profile-image" data-protected-src="${profileImage}"
                         alt="댓글 작성자 프로필 이미지" data-comment-field="writerProfileImage" />
 
                     <span class="comment-writer-nickname" data-comment-field="writerNickname">
@@ -170,6 +174,7 @@ function renderReplyItem(reply) {
 function addCreatedComment(comment) {
     if (!hasParentComment(comment)) {
         commentList.insertAdjacentHTML("afterbegin", renderParentComment(comment));
+        hydrateProtectedImages(commentList);
         return;
     }
 
@@ -199,6 +204,7 @@ function addCreatedComment(comment) {
     replyToggleButton.setAttribute("aria-expanded", "true");
     replyToggleButton.textContent = "접기";
     replyList.insertAdjacentHTML("afterbegin", renderReplyItem(comment));
+    hydrateProtectedImages(replyList);
 }
 
 function getCreatedComment(responseData) {
@@ -262,7 +268,7 @@ commentList.addEventListener("click", async (event) => {
         const content = editInput.value;
 
         try {
-            const response = await fetch(`http://localhost:8080/${userId}/posts/${postId}/comment/${commentId}`, {
+            const response = await authFetch(`/posts/${postId}/comment/${commentId}`, {
                 method: "PATCH",
                 headers: {
                     "Content-Type": "application/json",
@@ -373,7 +379,7 @@ confirmDeleteCommentButton.addEventListener("click", async () => {
     }
 
     try {
-        const response = await fetch(`http://localhost:8080/${userId}/posts/${postId}/comment/${selectedCommentId}`, {
+        const response = await authFetch(`/posts/${postId}/comment/${selectedCommentId}`, {
             method: "DELETE",
         });
 
@@ -432,7 +438,7 @@ commentForm.addEventListener("submit", async (event) => {
 
 async function createComment(parentCommentId, content, input, submitButton) {
     try {
-        const response = await fetch(`http://localhost:8080/${userId}/posts/${postId}/comment`, {
+        const response = await authFetch(`/posts/${postId}/comment`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",

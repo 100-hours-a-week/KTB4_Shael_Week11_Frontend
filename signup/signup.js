@@ -1,3 +1,5 @@
+import { API_BASE_URL } from "../common/auth.js";
+
 const loginMoveButton = document.querySelector("#loginMoveButton");
 const backButton = document.querySelector("#backButton");
 const signupForm = document.querySelector("#signupForm");
@@ -51,23 +53,28 @@ nicknameInput.addEventListener("blur", showNicknameError);
 signupForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    const profileImage = profileImageInput.files[0]?.name;
+    const profileImage = profileImageInput.files[0];
     const email = emailInput.value;
     const password = passwordInput.value;
     const nickname = nicknameInput.value;
+    const formData = new FormData();
+
+    formData.append(
+        "content",
+        new Blob(
+            [JSON.stringify({ email, password, nickname })],
+            { type: "application/json" }
+        )
+    );
+    if (profileImage) {
+        formData.append("profileImage", profileImage);
+    }
 
     try {
-        const response = await fetch("http://localhost:8080/signup", {
+        const response = await fetch(`${API_BASE_URL}/signup`, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                profileImage: profileImage,
-                email: email,
-                password: password,
-                nickname: nickname,
-            }),
+            credentials: "include",
+            body: formData,
         });
 
         if (response.status === 201) {

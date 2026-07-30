@@ -1,3 +1,10 @@
+import {
+    authFetch,
+    logout,
+    requireCurrentUser,
+    setProtectedImage,
+} from "../common/auth.js";
+
 const backButton = document.querySelector("#backButton");
 const headerProfileButton = document.querySelector("#headerProfileButton");
 const headerProfileImage = document.querySelector("#headerProfileImage");
@@ -18,11 +25,7 @@ const completeButton = document.querySelector("#completeButton");
 const serverErrorToast = document.querySelector("#serverErrorToast");
 
 
-const savedUser = sessionStorage.getItem("currentUser");
-if (!savedUser) {
-    location.href = "/login/login.html";
-}
-const currentUser = JSON.parse(savedUser);
+const currentUser = await requireCurrentUser();
 
 backButton.addEventListener("click", () => {
     location.href = "/posts/posts.html"
@@ -40,13 +43,12 @@ editPasswordButton.addEventListener("click", () => {
     location.href = "/password-edit/password-edit.html"
 });
 
-logoutButton.addEventListener("click", () => {
-    sessionStorage.removeItem("currentUser");
+logoutButton.addEventListener("click", async () => {
+    await logout();
     location.href = "/login/login.html"
 });
 
-const userId = currentUser.userId;
-headerProfileImage.src = currentUser.profileImage;
+setProtectedImage(headerProfileImage, currentUser.profileImage);
 
 postTitleInput.addEventListener("input", updateCompleteState);
 postContentInput.addEventListener("input", updateCompleteState);
@@ -143,27 +145,30 @@ postCreateForm.addEventListener("submit", async (event) => {
 
     const title = postTitleInput.value;
     const content = postContentInput.value;
-    const postImage = selectedFiles
-        .map((file) => file.name);
+    const formData = new FormData();
+
+    formData.append(
+        "content",
+        new Blob(
+            [JSON.stringify({ title, content })],
+            { type: "application/json" }
+        )
+    );
+    selectedFiles.forEach((file) => {
+        formData.append("images", file);
+    });
 
     try {
-        const response = await fetch(`http://localhost:8080/${userId}/posts`, {
+        const response = await authFetch("/posts", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                title: title,
-                content: content,
-                postImage: postImage,
-            }),
+            body: formData,
         });
 
         const data = await response.json();
 
         if (response.status === 201) {
             const postId = data.data.postId;
-            location.href = `/post-detail/post-detail.html?userId=${userId}&postId=${postId}`
+            location.href = `/post-detail/post-detail.html?postId=${postId}`
             return;
         }
 

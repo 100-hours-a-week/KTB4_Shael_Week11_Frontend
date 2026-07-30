@@ -1,3 +1,8 @@
+import {
+    authFetch,
+    setProtectedImage,
+} from "../common/auth.js";
+
 const serverErrorToast = document.querySelector("#serverErrorToast");
 const postTitle = document.querySelector("#postTitle");
 const postWriterProfileImage = document.querySelector("#postWriterProfileImage");
@@ -24,16 +29,14 @@ const deletePostModal = document.querySelector("#deletePostModal");
 const cancelDeletePostButton = document.querySelector("#cancelDeletePostButton");
 const confirmDeletePostButton = document.querySelector("#confirmDeletePostButton");
 
-let userId = null;
 let postId = null;
 let postImages = [];
 let currentImageIndex = 0;
 
 export function renderPost(postData, pageContext) {
-    userId = pageContext.userId;
     postId = pageContext.postId;
     postTitle.textContent = postData.title;
-    postWriterProfileImage.src = postData.writerProfileImage;
+    setProtectedImage(postWriterProfileImage, postData.writerProfileImage);
     postWriterNickname.textContent = postData.writerNickname;
     postCreatedAt.textContent = postData.createdAt;
     postEditedLabel.classList.toggle("hidden", !postData.updatedAt);
@@ -65,7 +68,7 @@ cancelDeletePostButton.addEventListener("click", () => {
 
 confirmDeletePostButton.addEventListener("click", async () => {
     try {
-        const response = await fetch(`http://localhost:8080/${userId}/posts/${postId}`, {
+        const response = await authFetch(`/posts/${postId}`, {
             method: "DELETE"
         });
 
@@ -104,7 +107,7 @@ function renderPostImages(images) {
 function updatePostImage() {
     const currentImage = postImages[currentImageIndex];
 
-    postImage.src = currentImage.postImage;
+    setProtectedImage(postImage, currentImage.imageUrl);
     postImage.alt = `게시글 이미지 ${currentImageIndex + 1}`;
 
     imageCounter.textContent = `${currentImageIndex + 1} / ${postImages.length}`;
@@ -132,7 +135,7 @@ nextImageButton.addEventListener("click", () => {
 
 likeButton.addEventListener("click", async () => {
     try {
-        const response = await fetch(`http://localhost:8080/${userId}/posts/${postId}/like`, {
+        const response = await authFetch(`/posts/${postId}/like`, {
             method: "POST"
         });
 
