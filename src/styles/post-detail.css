@@ -652,6 +652,15 @@ body {
   overflow-wrap: anywhere;
 }
 
+.anonymous-comment .comment-content {
+  margin-left: 0;
+  max-width: 100%;
+}
+
+.anonymous-comment-meta .comment-writer-nickname {
+  max-width: none;
+}
+
 .comment-edit-form {
   width: calc(100% - 46px);
   margin: 10px 0 0 46px;

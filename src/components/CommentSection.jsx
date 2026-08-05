@@ -5,6 +5,52 @@ import { ConfirmModal, ProtectedImage } from "./common";
 
 export const MAX_INDENT_LEVEL = 3;
 
+export function isDeletedComment(comment) {
+  return comment?.content === "삭제된 댓글";
+}
+
+export function isWithdrawnComment(comment) {
+  return !isDeletedComment(comment) && comment?.writerNickname?.trim() === "탈퇴 회원";
+}
+
+function compareCommentsByCreatedAt(left, right) {
+  const createdAtOrder = String(left.createdAt).localeCompare(String(right.createdAt));
+  if (createdAtOrder !== 0) return createdAtOrder;
+  return String(left.commentId).localeCompare(String(right.commentId), undefined, { numeric: true });
+}
+
+export function buildCommentDisplayMaps(comments) {
+  const list = Array.isArray(comments) ? comments : [];
+  const deletedNumbers = new Map();
+  const withdrawnNumbers = new Map();
+
+  list.filter(isDeletedComment).sort(compareCommentsByCreatedAt).forEach((comment, index) => {
+    deletedNumbers.set(String(comment.commentId), index + 1);
+  });
+
+  list.filter(isWithdrawnComment).sort(compareCommentsByCreatedAt).forEach((comment) => {
+    const writerKey = String(comment.writerId);
+    if (!withdrawnNumbers.has(writerKey)) withdrawnNumbers.set(writerKey, withdrawnNumbers.size + 1);
+  });
+
+  return { deletedNumbers, withdrawnNumbers };
+}
+
+export function getCommentPresentation(comment, displayMaps) {
+  const deleted = isDeletedComment(comment);
+  const withdrawn = isWithdrawnComment(comment);
+
+  if (deleted) {
+    const number = displayMaps.deletedNumbers.get(String(comment.commentId));
+    return { deleted, withdrawn: false, author: `삭제된 댓글 ${number}`, content: "삭제된 댓글입니다." };
+  }
+  if (withdrawn) {
+    const number = displayMaps.withdrawnNumbers.get(String(comment.writerId));
+    return { deleted: false, withdrawn, author: `탈퇴 회원 ${number}`, content: comment.content };
+  }
+  return { deleted: false, withdrawn: false, author: comment.writerNickname, content: comment.content };
+}
+
 export function buildCommentTree(comments) {
   const nodes = new Map();
   const roots = [];
@@ -23,31 +69,32 @@ export function buildCommentTree(comments) {
   return roots;
 }
 
-export function getReplyTargetNickname(parentComment) {
-  if (parentComment.content === "삭제된 댓글" || parentComment.writerNickname === "탈퇴 회원") {
-    return "탈퇴 회원";
-  }
-  return parentComment.writerNickname || "탈퇴 회원";
+export function getReplyContextText(parentComment, displayMaps) {
+  const presentation = getCommentPresentation(parentComment, displayMaps);
+  if (presentation.deleted) return `${presentation.author}에 답장`;
+  return `${presentation.author || "탈퇴 회원"}님에게 답장`;
 }
 
-export function flattenVisibleComments(comments, expanded, indentLevel = 1, replyTargetNickname = null) {
+export function flattenVisibleComments(comments, expanded, displayMaps, indentLevel = 1, replyContextText = null) {
   return comments.flatMap((comment) => {
-    const current = [{ comment, indentLevel, replyTargetNickname }];
+    const current = [{ comment, indentLevel, replyContextText }];
     if (!expanded[comment.commentId] || comment.children.length === 0) return current;
 
     return current.concat(flattenVisibleComments(
       comment.children,
       expanded,
+      displayMaps,
       Math.min(indentLevel + 1, MAX_INDENT_LEVEL),
-      getReplyTargetNickname(comment),
+      getReplyContextText(comment, displayMaps),
     ));
   });
 }
 
-function CommentMain({ comment, editing, onStartEditing, onCancelEditing, onUpdate, onDelete, showToast }) {
+function CommentMain({ comment, presentation, editing, onStartEditing, onCancelEditing, onUpdate, onDelete, showToast }) {
   const [content, setContent] = useState(comment.content);
-  const deleted = comment.content === "삭제된 댓글";
-  const owner = !deleted && comment.owner;
+  const { deleted, withdrawn } = presentation;
+  const anonymous = deleted || withdrawn;
+  const owner = !anonymous && comment.owner;
 
   function startEditing() {
     setContent(comment.content);
@@ -82,14 +129,14 @@ function CommentMain({ comment, editing, onStartEditing, onCancelEditing, onUpda
 
   return <>
     <div className="comment-header-row">
-      <div className="comment-body">
-        <div className="comment-writer-meta">
-          <ProtectedImage className="comment-writer-profile-image" path={comment.writerProfileImage} alt="댓글 작성자 프로필 이미지" />
-          <span className="comment-writer-nickname">{comment.writerNickname}</span>
-          <time className="comment-created-at">{comment.createdAt}</time>
-          {comment.updatedAt && <span className="edited-label">수정됨</span>}
+      <div className={`comment-body${anonymous ? " anonymous-comment" : ""}`}>
+        <div className={`comment-writer-meta${anonymous ? " anonymous-comment-meta" : ""}`}>
+          {!anonymous && <ProtectedImage className="comment-writer-profile-image" path={comment.writerProfileImage} alt="댓글 작성자 프로필 이미지" />}
+          <span className="comment-writer-nickname">{presentation.author}</span>
+          {!deleted && <time className="comment-created-at">{comment.createdAt}</time>}
+          {!deleted && comment.updatedAt && <span className="edited-label">수정됨</span>}
         </div>
-        {!editing && <p className="comment-content">{comment.content}</p>}
+        {!editing && <p className="comment-content">{presentation.content}</p>}
       </div>
       {owner && !editing && <div className="comment-owner-actions">
         <button type="button" className="outline-action-button comment-edit-button" onClick={startEditing}>수정</button>
@@ -123,18 +170,20 @@ function ReplyForm({ parentId, createComment, onClose }) {
     </form>;
 }
 
-function CommentItem({ comment, indentLevel, replyTargetNickname, expanded, setExpanded, createComment, updateComment, requestDelete, showToast }) {
+function CommentItem({ comment, displayMaps, indentLevel, replyContextText, expanded, setExpanded, createComment, updateComment, requestDelete, showToast }) {
   const [editing, setEditing] = useState(false);
   const [replyOpen, setReplyOpen] = useState(false);
   const hasChildren = comment.children.length > 0;
   const isExpanded = Boolean(expanded[comment.commentId]);
-  const deleted = comment.content === "삭제된 댓글";
+  const presentation = getCommentPresentation(comment, displayMaps);
+  const { deleted } = presentation;
 
   return <article className={`comment-item${indentLevel > 1 ? " reply-item" : ""}`} data-indent-level={indentLevel}>
     <div className="comment-main">
-      {replyTargetNickname && <div className="reply-context"><span className="reply-context-arrow" aria-hidden="true">↳</span><span>{replyTargetNickname}님에게 답장</span></div>}
+      {replyContextText && <div className="reply-context"><span className="reply-context-arrow" aria-hidden="true">↳</span><span>{replyContextText}</span></div>}
       <CommentMain
         comment={comment}
+        presentation={presentation}
         editing={editing}
         onStartEditing={() => { setReplyOpen(false); setEditing(true); }}
         onCancelEditing={() => setEditing(false)}
@@ -156,8 +205,9 @@ export function CommentSection({ postId, comments, setComments, setCommentCount,
   const [expanded, setExpanded] = useState({});
   const [deleteId, setDeleteId] = useState(null);
   const normalized = useMemo(() => (Array.isArray(comments) ? comments : []).map((comment) => ({ ...comment, postId })), [comments, postId]);
+  const displayMaps = useMemo(() => buildCommentDisplayMaps(normalized), [normalized]);
   const tree = useMemo(() => buildCommentTree(normalized), [normalized]);
-  const visibleComments = useMemo(() => flattenVisibleComments(tree, expanded), [expanded, tree]);
+  const visibleComments = useMemo(() => flattenVisibleComments(tree, expanded, displayMaps), [displayMaps, expanded, tree]);
 
   async function createComment(parentCommentId, text) {
     try {
@@ -169,7 +219,7 @@ export function CommentSection({ postId, comments, setComments, setCommentCount,
       const body = await response.json().catch(() => null);
       if (response.ok) {
         const created = body.data;
-        setComments((current) => [created, ...(Array.isArray(current) ? current : [])]);
+        setComments((current) => [...(Array.isArray(current) ? current : []), created]);
         if (body.data.commentCount !== undefined) setCommentCount(body.data.commentCount);
         if (parentCommentId !== null) setExpanded((current) => ({ ...current, [parentCommentId]: true }));
         return true;
@@ -211,11 +261,12 @@ export function CommentSection({ postId, comments, setComments, setCommentCount,
       </form>
     </section>
     <section className="comment-list-section" aria-label="댓글 목록">
-      <div className="comment-list">{visibleComments.map(({ comment, indentLevel, replyTargetNickname }) => <CommentItem
+      <div className="comment-list">{visibleComments.map(({ comment, indentLevel, replyContextText }) => <CommentItem
         key={comment.commentId}
         comment={comment}
+        displayMaps={displayMaps}
         indentLevel={indentLevel}
-        replyTargetNickname={replyTargetNickname}
+        replyContextText={replyContextText}
         expanded={expanded}
         setExpanded={setExpanded}
         createComment={createComment}
