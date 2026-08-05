@@ -530,17 +530,14 @@ body {
   cursor: default;
 }
 
-.reply-write-details {
+.comment-reply-actions {
   width: calc(100% - 46px);
   margin: 12px 0 0 46px;
-}
 
-.reply-write-details summary {
-  list-style: none;
-}
-
-.reply-write-details summary::-webkit-details-marker {
-  display: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .reply-add-button {
@@ -550,12 +547,8 @@ body {
 }
 
 .reply-comment-form {
-  width: 100%;
-  margin-top: 10px;
-}
-
-.reply-write-details[open] .reply-add-button {
-  background-color: #7F6AEE;
+  width: calc(100% - 46px);
+  margin: 10px 0 0 46px;
 }
 
 .comment-list-section {
@@ -659,39 +652,21 @@ body {
   overflow-wrap: anywhere;
 }
 
-.comment-edit-input {
-  display: none;
-
+.comment-edit-form {
   width: calc(100% - 46px);
-  min-height: 88px;
   margin: 10px 0 0 46px;
-  padding: 14px 16px;
-
-  border: none;
-  border-radius: 8px;
-  outline: none;
-  resize: none;
-
-  background-color: #FFFFFF;
-  color: #000000;
-
-  font-family: Pretendard, Arial, sans-serif;
-  font-size: 15px;
-  font-weight: 400;
-  line-height: 150%;
 }
 
-.comment-edit-input:focus {
-  outline: 1px solid #ACA0EB;
+.comment-edit-submit-row {
+  gap: 8px;
 }
 
-.comment-edit-complete-button {
-  display: none;
+.comment-edit-cancel-button,
+.comment-edit-cancel-button:hover {
+  background-color: #A2A2A2;
 }
 
 .reply-toggle-button {
-  margin-top: 8px;
-  margin-left: 46px;
   padding: 0;
 
   border: none;
@@ -723,14 +698,34 @@ body {
   position: relative;
 }
 
-.reply-item::before {
-  content: "↳";
-  position: absolute;
-  top: 6px;
-  left: -24px;
+.comment-item[data-indent-level="2"] {
+  width: calc(100% - 46px);
+  margin-left: 46px;
+}
 
-  color: rgb(205, 206, 207);
+.comment-item[data-indent-level="3"] {
+  width: calc(100% - 92px);
+  margin-left: 92px;
+}
+
+.reply-context {
+  margin-bottom: 12px;
+
+  color: #333333;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 18px;
+
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reply-context-arrow {
+  flex: 0 0 auto;
+
   font-size: 18px;
+  line-height: 18px;
 }
 
 .server-error-toast {
@@ -1151,6 +1146,16 @@ body {
     height: 30px;
 
     font-size: 13px;
+  }
+
+  .comment-item[data-indent-level="2"] {
+    width: calc(100% - 28px);
+    margin-left: 28px;
+  }
+
+  .comment-item[data-indent-level="3"] {
+    width: calc(100% - 56px);
+    margin-left: 56px;
   }
 
   .modal-content {

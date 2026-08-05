@@ -44,13 +44,23 @@ export function flattenVisibleComments(comments, expanded, indentLevel = 1, repl
   });
 }
 
-function CommentMain({ comment, onUpdate, onDelete, showToast }) {
-  const [editing, setEditing] = useState(false);
+function CommentMain({ comment, editing, onStartEditing, onCancelEditing, onUpdate, onDelete, showToast }) {
   const [content, setContent] = useState(comment.content);
   const deleted = comment.content === "삭제된 댓글";
   const owner = !deleted && comment.owner;
 
-  async function update() {
+  function startEditing() {
+    setContent(comment.content);
+    onStartEditing();
+  }
+
+  function cancelEditing() {
+    setContent(comment.content);
+    onCancelEditing();
+  }
+
+  async function update(event) {
+    event.preventDefault();
     try {
       const response = await authFetch(`/posts/${comment.postId}/comment/${comment.commentId}`, {
         method: "PATCH",
@@ -61,7 +71,7 @@ function CommentMain({ comment, onUpdate, onDelete, showToast }) {
       if (response.ok) {
         onUpdate(comment.commentId, body.data);
         setContent(body.data.content);
-        setEditing(false);
+        onCancelEditing();
       } else if (response.status === 400) {
         showToast(getFieldError(body, ["content"])?.message || ERROR_MESSAGES.request);
       } else showToast(getStatusMessage(response.status, { 403: "수정 권한이 없습니다.", 404: "해당 댓글을 찾을 수 없습니다." }));
@@ -79,39 +89,43 @@ function CommentMain({ comment, onUpdate, onDelete, showToast }) {
           <time className="comment-created-at">{comment.createdAt}</time>
           {comment.updatedAt && <span className="edited-label">수정됨</span>}
         </div>
-        <p className="comment-content">{comment.content}</p>
+        {!editing && <p className="comment-content">{comment.content}</p>}
       </div>
-      {owner && <div className="comment-owner-actions">
-        <button type="button" className="outline-action-button comment-edit-button" onClick={() => setEditing(true)}>수정</button>
-        {editing && <button type="button" className="outline-action-button comment-edit-complete-button" onClick={update}>수정 완료</button>}
+      {owner && !editing && <div className="comment-owner-actions">
+        <button type="button" className="outline-action-button comment-edit-button" onClick={startEditing}>수정</button>
         <button type="button" className="outline-action-button comment-delete-button" onClick={() => onDelete(comment.commentId)}>삭제</button>
       </div>}
     </div>
-    {editing && <textarea className="comment-edit-input" rows="3" value={content} onChange={(event) => setContent(event.target.value)} autoFocus />}
+    {editing && <form className="comment-form comment-edit-form" onSubmit={update}>
+      <textarea className="comment-input" rows="5" value={content} onChange={(event) => setContent(event.target.value)} autoFocus />
+      <div className="comment-form-divider" />
+      <div className="comment-submit-row comment-edit-submit-row">
+        <button type="button" className="comment-submit-button comment-edit-cancel-button" onClick={cancelEditing}>수정 취소</button>
+        <button type="submit" className={`comment-submit-button ${content.trim() ? "active" : "disabled"}`} disabled={!content.trim()}>수정 완료</button>
+      </div>
+    </form>}
   </>;
 }
 
-function ReplyForm({ parentId, createComment }) {
-  const [open, setOpen] = useState(false);
+function ReplyForm({ parentId, createComment, onClose }) {
   const [content, setContent] = useState("");
 
-  return <details className="reply-write-details" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
-    <summary className="comment-submit-button reply-add-button">{open ? "댓글 취소" : "댓글 추가"}</summary>
-    <form className="comment-form reply-comment-form" onSubmit={async (event) => {
+  return <form className="comment-form reply-comment-form" onSubmit={async (event) => {
       event.preventDefault();
       if (await createComment(parentId, content)) {
         setContent("");
-        setOpen(false);
+        onClose();
       }
     }}>
       <textarea className="comment-input" placeholder="댓글을 남겨주세요!" rows="5" value={content} onChange={(event) => setContent(event.target.value)} />
       <div className="comment-form-divider" />
       <div className="comment-submit-row"><button type="submit" className={`comment-submit-button ${content.trim() ? "active" : "disabled"}`} disabled={!content.trim()}>댓글 등록</button></div>
-    </form>
-  </details>;
+    </form>;
 }
 
 function CommentItem({ comment, indentLevel, replyTargetNickname, expanded, setExpanded, createComment, updateComment, requestDelete, showToast }) {
+  const [editing, setEditing] = useState(false);
+  const [replyOpen, setReplyOpen] = useState(false);
   const hasChildren = comment.children.length > 0;
   const isExpanded = Boolean(expanded[comment.commentId]);
   const deleted = comment.content === "삭제된 댓글";
@@ -119,9 +133,20 @@ function CommentItem({ comment, indentLevel, replyTargetNickname, expanded, setE
   return <article className={`comment-item${indentLevel > 1 ? " reply-item" : ""}`} data-indent-level={indentLevel}>
     <div className="comment-main">
       {replyTargetNickname && <div className="reply-context"><span className="reply-context-arrow" aria-hidden="true">↳</span><span>{replyTargetNickname}님에게 답장</span></div>}
-      <CommentMain comment={comment} onUpdate={updateComment} onDelete={requestDelete} showToast={showToast} />
-      {!deleted && <ReplyForm parentId={comment.commentId} createComment={createComment} />}
-      {hasChildren && <button type="button" className="reply-toggle-button" aria-expanded={isExpanded} onClick={() => setExpanded((current) => ({ ...current, [comment.commentId]: !current[comment.commentId] }))}>{isExpanded ? "접기" : "펼쳐보기"}</button>}
+      <CommentMain
+        comment={comment}
+        editing={editing}
+        onStartEditing={() => { setReplyOpen(false); setEditing(true); }}
+        onCancelEditing={() => setEditing(false)}
+        onUpdate={updateComment}
+        onDelete={requestDelete}
+        showToast={showToast}
+      />
+      {(hasChildren || (!deleted && !editing)) && <div className="comment-reply-actions">
+        {hasChildren && <button type="button" className="reply-toggle-button" aria-expanded={isExpanded} onClick={() => setExpanded((current) => ({ ...current, [comment.commentId]: !current[comment.commentId] }))}>{isExpanded ? "접기" : "펼쳐보기"}</button>}
+        {!deleted && !editing && <button type="button" className="comment-submit-button reply-add-button" onClick={() => setReplyOpen((current) => !current)}>{replyOpen ? "댓글 취소" : "댓글 추가"}</button>}
+      </div>}
+      {replyOpen && !editing && <ReplyForm parentId={comment.commentId} createComment={createComment} onClose={() => setReplyOpen(false)} />}
     </div>
   </article>;
 }
