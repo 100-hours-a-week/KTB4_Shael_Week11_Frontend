@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { authFetch } from "../api/client";
 import { ERROR_MESSAGES, getFieldError, getStatusMessage } from "../api/errors";
@@ -10,13 +10,8 @@ import { validateContent, validatePostImages, validateTitle } from "../utils/val
 import postFormCss from "../styles/post-form.css?inline";
 
 function Preview({ image }) {
-  const localUrl = useMemo(() => image.type === "new" ? URL.createObjectURL(image.file) : "", [image]);
-  useEffect(() => {
-    if (!localUrl) return;
-    return () => URL.revokeObjectURL(localUrl);
-  }, [localUrl]);
   if (image.type === "existing") return <ProtectedImage className="image-preview" path={image.value} alt="이미지 미리보기" />;
-  return <img className="image-preview" src={localUrl} alt="이미지 미리보기" />;
+  return <img className="image-preview" src={image.previewUrl} alt="이미지 미리보기" />;
 }
 
 export function PostFormPage({ mode }) {
@@ -32,8 +27,14 @@ export function PostFormPage({ mode }) {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(editing && Boolean(postId));
   const [submitting, setSubmitting] = useState(false);
+  const previewUrlsRef = useRef(new Set());
   const results = useMemo(() => ({ title: validateTitle(title), content: validateContent(content), images: validatePostImages(images) }), [content, images, title]);
   const valid = Object.values(results).every((result) => result === true);
+
+  useEffect(() => () => {
+    previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    previewUrlsRef.current.clear();
+  }, []);
 
   useEffect(() => {
     if (!editing) return;
@@ -56,9 +57,18 @@ export function PostFormPage({ mode }) {
   function addImages(event) {
     const files = Array.from(event.target.files);
     event.target.value = "";
-    const next = [...images, ...files.map((file) => ({ type: "new", file, value: file.name }))];
+    const additions = files.map((file) => {
+      const previewUrl = URL.createObjectURL(file);
+      previewUrlsRef.current.add(previewUrl);
+      return { type: "new", file, value: file.name, previewUrl };
+    });
+    const next = [...images, ...additions];
     const result = validatePostImages(next);
     if (next.length > 5 || files.some((file) => file.name.length > 500)) {
+      additions.forEach(({ previewUrl }) => {
+        URL.revokeObjectURL(previewUrl);
+        previewUrlsRef.current.delete(previewUrl);
+      });
       setErrors((current) => ({ ...current, images: result }));
       return;
     }
@@ -93,7 +103,7 @@ export function PostFormPage({ mode }) {
     {loading ? <p aria-busy="true">불러오는 중...</p> : <form className="post-form" onSubmit={submit}><div className="form-section"><label htmlFor="postTitleInput" className="form-label">제목*</label><div className="form-divider" /><input id="postTitleInput" type="text" required className="title-input" maxLength="26" value={title} onChange={(e) => setTitle(e.target.value)} onBlur={() => setErrors((current) => ({ ...current, title: results.title === true ? "" : results.title }))} placeholder="제목을 입력해주세요. (최대 26글자)" /><div className="form-divider" /><FieldError message={errors.title} /></div>
     <div className="form-section content-section"><label htmlFor="postContentInput" className="form-label">내용*</label><div className="form-divider" /><textarea id="postContentInput" required className="content-input" value={content} onChange={(e) => setContent(e.target.value)} onBlur={() => setErrors((current) => ({ ...current, content: results.content === true ? "" : results.content }))} placeholder="내용을 입력해주세요." /><div className="form-divider" /><FieldError message={errors.content} /></div>
     <div className="form-section image-section"><label htmlFor="postImageInput" className="form-label">이미지</label><FieldError message={errors.images} className="error-message image-error" /><div className="file-row"><label htmlFor="postImageInput" className="file-select-button">파일 선택</label><input type="file" id="postImageInput" className="file-input" accept="image/*" multiple onChange={addImages} /><span className="selected-file-text">{fileText}</span></div>
-      <div className={`image-preview-list${images.length ? "" : " hidden"}`} aria-label="선택한 이미지 미리보기">{images.map((image, index) => <div className="image-preview-item" key={`${image.type}-${image.value}-${index}`}><Preview image={image} /><button type="button" className="image-remove-button" onClick={() => { setImages((current) => current.filter((_, itemIndex) => itemIndex !== index)); setErrors((current) => ({ ...current, images: "" })); }}>×</button></div>)}</div>
+      <div className={`image-preview-list${images.length ? "" : " hidden"}`} aria-label="선택한 이미지 미리보기">{images.map((image, index) => <div className="image-preview-item" key={`${image.type}-${image.value}-${index}`}><Preview image={image} /><button type="button" className="image-remove-button" onClick={() => { if (image.type === "new") { URL.revokeObjectURL(image.previewUrl); previewUrlsRef.current.delete(image.previewUrl); } setImages((current) => current.filter((_, itemIndex) => itemIndex !== index)); setErrors((current) => ({ ...current, images: "" })); }}>×</button></div>)}</div>
     </div><button type="submit" className={`complete-button ${valid ? "active" : "disabled"}`} disabled={!valid || submitting}>{editing ? "수정 완료" : "완료"}</button></form>}
   </section></main><Toast toast={toast} /></>;
 }

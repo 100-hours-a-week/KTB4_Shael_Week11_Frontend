@@ -4,6 +4,7 @@ import { ERROR_MESSAGES, getFieldError, getStatusMessage } from "../api/errors";
 import { ConfirmModal, ProtectedImage } from "./common";
 
 export const MAX_INDENT_LEVEL = 3;
+const formatDetailDate = (value) => String(value ?? "").slice(0, 16);
 
 export function isDeletedComment(comment) {
   return comment?.content === "삭제된 댓글";
@@ -67,6 +68,20 @@ export function buildCommentTree(comments) {
   });
 
   return roots;
+}
+
+export function applyCommentDeletion(comments, deletedCommentId) {
+  const list = Array.isArray(comments) ? comments : [];
+  const deletedId = String(deletedCommentId);
+  const hasReplies = list.some((comment) => String(comment.parentCommentId) === deletedId);
+
+  if (!hasReplies) {
+    return list.filter((comment) => String(comment.commentId) !== deletedId);
+  }
+
+  return list.map((comment) => String(comment.commentId) === deletedId
+    ? { ...comment, content: "삭제된 댓글", owner: false, updatedAt: comment.updatedAt || new Date().toISOString() }
+    : comment);
 }
 
 export function getReplyContextText(parentComment, displayMaps) {
@@ -133,7 +148,7 @@ function CommentMain({ comment, presentation, editing, onStartEditing, onCancelE
         <div className={`comment-writer-meta${anonymous ? " anonymous-comment-meta" : ""}`}>
           {!anonymous && <ProtectedImage className="comment-writer-profile-image" path={comment.writerProfileImage} alt="댓글 작성자 프로필 이미지" />}
           <span className="comment-writer-nickname">{presentation.author}</span>
-          {!deleted && <time className="comment-created-at">{comment.createdAt}</time>}
+          {!deleted && <time className="comment-created-at">{formatDetailDate(comment.createdAt)}</time>}
           {!deleted && comment.updatedAt && <span className="edited-label">수정됨</span>}
         </div>
         {!editing && <p className="comment-content">{presentation.content}</p>}
@@ -241,9 +256,7 @@ export function CommentSection({ postId, comments, setComments, setCommentCount,
       const response = await authFetch(`/posts/${postId}/comment/${deleteId}`, { method: "DELETE" });
       const body = await response.json().catch(() => null);
       if (response.ok) {
-        setComments((current) => current.map((comment) => comment.commentId === deleteId
-          ? { ...comment, content: "삭제된 댓글", owner: false, updatedAt: comment.updatedAt || new Date().toISOString() }
-          : comment));
+        setComments((current) => applyCommentDeletion(current, deleteId));
         if (body.data.commentCount !== undefined) setCommentCount(body.data.commentCount);
         setDeleteId(null);
       } else showToast(getStatusMessage(response.status, { 403: "삭제 권한이 없습니다.", 404: "해당 댓글을 찾을 수 없습니다." }));
