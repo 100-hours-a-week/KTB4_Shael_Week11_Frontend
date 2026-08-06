@@ -6,8 +6,14 @@ import { Header, ProtectedImage, Toast } from "../components/common";
 import { useToast } from "../hooks/useToast";
 import { usePageStyle } from "../hooks/usePageStyle";
 import postsCss from "../styles/posts.css?inline";
+import iconCalendar from "../assets/icon-calendar.svg";
+import iconComment from "../assets/icon-comment.svg";
+import iconEye from "../assets/icon-eye.svg";
+import iconHeart from "../assets/icon-heart.svg";
+import iconSearch from "../assets/icon-search.svg";
 
 const formatCount = (count) => count >= 1000 ? `${Math.floor((count / 1000) * 10) / 10}k` : count;
+const formatListDate = (value) => String(value ?? "").slice(0, 10);
 
 export function PostsPage() {
   usePageStyle(postsCss);
@@ -20,7 +26,6 @@ export function PostsPage() {
   const loadMoreTarget = useRef(null);
   const requesting = useRef(false);
   const { toast, showToast } = useToast();
-
   useEffect(() => {
     const controller = new AbortController();
     (async () => {
@@ -72,8 +77,8 @@ export function PostsPage() {
     return () => observer.disconnect();
   }, [hasNext, loadMore, loadMoreFailed]);
 
-  return <><Header /><main className="posts-page"><section className="posts-container" aria-labelledby="boardIntroTitle"><div className="board-header"><h2 id="boardIntroTitle" className="board-intro">안녕하세요,<br />아무 말 대잔치 <strong>게시판</strong> 입니다.</h2><button type="button" className="create-post-button" onClick={() => navigate("/post-form/post-create.html")}>게시글 작성</button></div>
-    <section className="post-list" aria-label="게시글 목록">{posts.map((post) => <article className="post-card" key={post.postId}><button type="button" className="post-card-button" onClick={() => navigate(`/post-detail/post-detail.html?postId=${post.postId}`)}><div className="post-content"><div className="post-main"><h3 className="post-title">{post.title.length > 26 ? `${post.title.slice(0, 26)}...` : post.title}</h3><div className="post-info-row"><div className="post-stats"><span>좋아요 {formatCount(post.likeCount)}</span><span>댓글 {formatCount(post.commentCount)}</span><span>조회수 {formatCount(post.viewCount)}</span></div><time className="post-date">{post.createdAt}</time></div></div><div className="post-divider" /><div className="post-writer"><ProtectedImage className="writer-profile-image" path={post.writerProfileImage} alt="작성자 프로필 이미지" /><span className="writer-nickname">{post.writerNickname}</span></div></div></button></article>)}</section>
+  return <><Header /><main className="posts-page"><section className="posts-container" aria-label="게시글 목록"><div className="posts-search"><input placeholder="게시글을 검색해보세요" aria-label="게시글 검색" /><img src={iconSearch} alt="" aria-hidden="true" /></div><div className="list-controls"><div className="sort-filter" role="group" aria-label="게시글 정렬"><button type="button" className="selected" aria-pressed="true">최신순</button><button type="button" aria-pressed="false">오래된 순</button><button type="button" aria-pressed="false">인기순</button></div><button type="button" className="create-post-button" onClick={() => navigate("/post-form/post-create.html")}>게시글 작성</button></div>
+    <section className="post-list" aria-label="게시글 목록">{posts.map((post) => <article className="post-card" key={post.postId}><button type="button" className="post-card-button" onClick={() => navigate(`/post-detail/post-detail.html?postId=${post.postId}`)}><div className="post-content"><div className="post-card-head"><h3 className="post-title">{post.title.length > 26 ? `${post.title.slice(0, 26)}...` : post.title}</h3><time className="post-date"><img src={iconCalendar} alt="" aria-hidden="true" />{formatListDate(post.createdAt)}</time></div><div className="post-card-foot"><div className="post-stats"><span><img src={iconHeart} alt="" aria-hidden="true" />{formatCount(post.likeCount)}</span><span><img src={iconComment} alt="" aria-hidden="true" />{formatCount(post.commentCount)}</span><span><img src={iconEye} alt="" aria-hidden="true" />{formatCount(post.viewCount)}</span></div><div className="post-writer"><ProtectedImage className="writer-profile-image" path={post.writerProfileImage} alt="작성자 프로필 이미지" /><span className="writer-nickname">{post.writerNickname}</span></div></div></div></button></article>)}</section>
     {hasNext && !loadMoreFailed && <div ref={loadMoreTarget} className="post-load-more-sentinel" aria-hidden="true" />}
     {loadingMore && <p className="post-load-more-status" role="status">게시글을 불러오는 중...</p>}
     {loadMoreFailed && <button type="button" className="create-post-button post-load-more-button" onClick={loadMore}>다시 불러오기</button>}

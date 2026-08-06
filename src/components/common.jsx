@@ -21,8 +21,9 @@ export function Header({ backTo, profile = true }) {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
   return <header className="top-banner">
-    {backTo && <button type="button" className="back-button" onClick={() => navigate(backTo)} aria-label="이전 페이지로 이동">&lt;</button>}
-    <h1 className="banner-title">아무 말 대잔치</h1>
+    <div className="header-inner">
+    {backTo && <button type="button" className="back-button" onClick={() => navigate(backTo)} aria-label="이전 페이지로 이동">‹</button>}
+    <button type="button" className="brand-link" onClick={() => navigate(user ? "/posts/posts.html" : "/login/login.html")} aria-label="Study Us 홈으로 이동"><span className="brand-mark" aria-hidden="true" /><span className="banner-title">Study Us</span></button>
     {profile && <div className="header-profile-area">
       <button type="button" className="header-profile-button" onClick={() => setOpen((value) => !value)} aria-label="프로필 메뉴 열기" aria-haspopup="true" aria-expanded={open}>
         <ProtectedImage className="header-profile-image" path={user?.profileImage} alt="사용자 프로필 이미지" />
@@ -33,6 +34,7 @@ export function Header({ backTo, profile = true }) {
         <button type="button" className="dropdown-item" onClick={async () => { await logout(); navigate("/login/login.html", { replace: true }); }}>로그아웃</button>
       </nav>
     </div>}
+    </div>
   </header>;
 }
 
