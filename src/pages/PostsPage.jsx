@@ -21,6 +21,7 @@ export function PostsPage() {
   const [posts, setPosts] = useState([]);
   const [nextCursor, setNextCursor] = useState(null);
   const [hasNext, setHasNext] = useState(true);
+  const [initialLoadStatus, setInitialLoadStatus] = useState("loading");
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreFailed, setLoadMoreFailed] = useState(false);
   const loadMoreTarget = useRef(null);
@@ -36,9 +37,18 @@ export function PostsPage() {
           setPosts(data?.posts ?? []);
           setNextCursor(data?.nextCursor ?? null);
           setHasNext(Boolean(data?.hasNext));
+          setInitialLoadStatus("success");
         }
-        else showToast(getStatusMessage(response.status));
-      } catch (error) { if (error.name !== "AbortError") showToast(ERROR_MESSAGES.network); }
+        else {
+          setInitialLoadStatus("error");
+          showToast(getStatusMessage(response.status));
+        }
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setInitialLoadStatus("error");
+          showToast(ERROR_MESSAGES.network);
+        }
+      }
     })();
     return () => controller.abort();
   }, [showToast]);
@@ -78,8 +88,10 @@ export function PostsPage() {
   }, [hasNext, loadMore, loadMoreFailed]);
 
   return <><Header /><main className="posts-page"><section className="posts-container" aria-label="게시글 목록"><div className="posts-search"><input placeholder="게시글을 검색해보세요" aria-label="게시글 검색" /><img src={iconSearch} alt="" aria-hidden="true" /></div><div className="list-controls"><div className="sort-filter" role="group" aria-label="게시글 정렬"><button type="button" className="selected" aria-pressed="true">최신순</button><button type="button" aria-pressed="false">오래된 순</button><button type="button" aria-pressed="false">인기순</button></div><button type="button" className="create-post-button" onClick={() => navigate("/post-form/post-create.html")}>게시글 작성</button></div>
-    <section className="post-list" aria-label="게시글 목록">{posts.map((post) => <article className="post-card" key={post.postId}><button type="button" className="post-card-button" onClick={() => navigate(`/post-detail/post-detail.html?postId=${post.postId}`)}><div className="post-content"><div className="post-card-head"><h3 className="post-title">{post.title.length > 26 ? `${post.title.slice(0, 26)}...` : post.title}</h3><time className="post-date"><img src={iconCalendar} alt="" aria-hidden="true" />{formatListDate(post.createdAt)}</time></div><div className="post-card-foot"><div className="post-stats"><span><img src={iconHeart} alt="" aria-hidden="true" />{formatCount(post.likeCount)}</span><span><img src={iconComment} alt="" aria-hidden="true" />{formatCount(post.commentCount)}</span><span><img src={iconEye} alt="" aria-hidden="true" />{formatCount(post.viewCount)}</span></div><div className="post-writer"><ProtectedImage className="writer-profile-image" path={post.writerProfileImage} alt="작성자 프로필 이미지" /><span className="writer-nickname">{post.writerNickname}</span></div></div></div></button></article>)}</section>
-    {hasNext && !loadMoreFailed && <div ref={loadMoreTarget} className="post-load-more-sentinel" aria-hidden="true" />}
+    <section className="post-list" aria-label="게시글 목록">{initialLoadStatus === "success" && posts.length === 0
+      ? <div className="post-empty-state" role="status">게시글이 없습니다.</div>
+      : posts.map((post) => <article className="post-card" key={post.postId}><button type="button" className="post-card-button" onClick={() => navigate(`/post-detail/post-detail.html?postId=${post.postId}`)}><div className="post-content"><div className="post-card-head"><h3 className="post-title">{post.title.length > 26 ? `${post.title.slice(0, 26)}...` : post.title}</h3><time className="post-date"><img src={iconCalendar} alt="" aria-hidden="true" />{formatListDate(post.createdAt)}</time></div><div className="post-card-foot"><div className="post-stats"><span><img src={iconHeart} alt="" aria-hidden="true" />{formatCount(post.likeCount)}</span><span><img src={iconComment} alt="" aria-hidden="true" />{formatCount(post.commentCount)}</span><span><img src={iconEye} alt="" aria-hidden="true" />{formatCount(post.viewCount)}</span></div><div className="post-writer"><ProtectedImage className="writer-profile-image" path={post.writerProfileImage} alt="작성자 프로필 이미지" /><span className="writer-nickname">{post.writerNickname}</span></div></div></div></button></article>)}</section>
+    {initialLoadStatus === "success" && hasNext && !loadMoreFailed && <div ref={loadMoreTarget} className="post-load-more-sentinel" aria-hidden="true" />}
     {loadingMore && <p className="post-load-more-status" role="status">게시글을 불러오는 중...</p>}
     {loadMoreFailed && <button type="button" className="create-post-button post-load-more-button" onClick={loadMore}>다시 불러오기</button>}
   </section></main><Toast toast={toast} /></>;
