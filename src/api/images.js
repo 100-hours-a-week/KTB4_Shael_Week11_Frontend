@@ -29,6 +29,6 @@ export async function protectedPathToFile(image) {
   const response = await authFetch(`${url.pathname}${url.search}`);
   if (!response.ok) throw new Error("existing_image_fetch_failed");
   const blob = await response.blob();
-  const filename = image.originalFilename || decodeURIComponent(url.pathname.split("/").pop() || "post-image");
+  const filename = decodeURIComponent(url.pathname.split("/").pop() || "post-image");
   return new File([blob], filename, { type: blob.type || "application/octet-stream" });
 }
