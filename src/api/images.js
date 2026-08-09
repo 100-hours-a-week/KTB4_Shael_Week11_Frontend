@@ -2,11 +2,16 @@ import { API_BASE_URL, authFetch } from "./client";
 
 const imageCache = new Map();
 
+function resolveApiUrl(path) {
+  const baseUrl = new URL(API_BASE_URL, window.location.origin);
+  return new URL(path, baseUrl);
+}
+
 export async function getProtectedImageUrl(path) {
   if (!path || path.startsWith("blob:") || path.startsWith("data:")) return path;
   if (!imageCache.has(path)) {
     const promise = (async () => {
-      const url = new URL(path, API_BASE_URL);
+      const url = resolveApiUrl(path);
       const response = await authFetch(`${url.pathname}${url.search}`);
       if (!response.ok) throw new Error("protected_image_fetch_failed");
       return URL.createObjectURL(await response.blob());
@@ -25,7 +30,7 @@ export function clearProtectedImageCache() {
 }
 
 export async function protectedPathToFile(image) {
-  const url = new URL(image.value, API_BASE_URL);
+  const url = resolveApiUrl(image.value);
   const response = await authFetch(`${url.pathname}${url.search}`);
   if (!response.ok) throw new Error("existing_image_fetch_failed");
   const blob = await response.blob();
