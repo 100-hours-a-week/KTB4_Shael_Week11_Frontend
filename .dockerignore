@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.vscode
+.idea
+.env
+.env.*
+*.log
+*.md
+.DS_Store
+.agents
+.codex
+.omd
